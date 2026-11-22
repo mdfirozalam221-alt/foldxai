@@ -68,6 +68,7 @@
 		.composer { padding: 12px; border-top: 1px solid var(--line); }.composer textarea { display: block; width: 100%; min-height: 61px; max-height: 180px; resize: vertical; padding: 7px 7px 10px; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }
 		.composer textarea::placeholder, input::placeholder, textarea::placeholder { color: #737d72; }
 		.composer-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.composer-hint { color: var(--dim); font-size: 10px; }
+		.attachment-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }.attachment-item { position: relative; width: 92px; border: 1px solid var(--line); background: #0b1a2d; }.attachment-item img, .attachment-item video { display: block; width: 92px; height: 62px; object-fit: cover; }.attachment-name { display: block; overflow: hidden; padding: 4px 6px; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }.attachment-remove { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border: 1px solid var(--line); border-radius: 50%; background: rgba(7,20,38,.92); color: var(--ink); cursor: pointer; }.chat-attachment-button { min-width: 34px; padding: 7px 9px; border: 1px solid var(--line); background: transparent; color: var(--lime); cursor: pointer; }.chat-actions-left { display: flex; align-items: center; gap: 8px; }.chat-message-attachment { display: block; max-width: 420px; width: 100%; margin-top: 9px; border: 1px solid var(--line); border-radius: 4px; }.chat-message-attachment img { width: 100%; max-height: 360px; object-fit: contain; }.chat-message-attachment video { width: 100%; max-height: 360px; }
 		.primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 8px 14px; border: 1px solid var(--lime); background: var(--lime); color: #182013; font-size: 12px; font-weight: 700; cursor: pointer; transition: background .15s ease, transform .15s ease; }.primary-button:hover { background: #daf894; transform: translateY(-1px); }.primary-button:disabled { opacity: .55; cursor: wait; transform: none; }
 		.suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }.suggestion { padding: 7px 10px; border: 1px solid var(--line); background: #151b15; color: var(--muted); font-size: 11px; cursor: pointer; }.suggestion:hover { border-color: #667951; color: var(--lime); }
 		.section-heading { margin: 31px 0 10px; color: var(--muted); font: 10px var(--mono); text-transform: uppercase; }
@@ -106,7 +107,7 @@
 			<header class="topbar"><div class="crumb"><span>Workspace</span><span>/</span><strong id="crumbTitle">Ask AI</strong></div><div class="top-actions"><div class="model-chip" aria-label="AI chat available"><span class="status-dot"></span><span>AI ready</span></div><div class="avatar" title="FOLD X AI" aria-label="FOLD X AI">FX</div></div></header>
 			<section class="view active" id="view-chat" aria-labelledby="chatTitle">
 				<div class="intro-row"><div><div class="eyebrow">A little help goes a long way</div><h1 id="chatTitle">What are we making?</h1><p class="lead">Ask a question, work through an idea, or get a friendly guide to your next project.</p></div><div class="shortcut"><kbd>Enter</kbd> send &nbsp; <kbd>Shift</kbd> + <kbd>Enter</kbd> new line</div></div>
-				<div class="chat-shell"><div class="chat-head"><div class="chat-head-label"><span class="tiny-mark">FX</span><span>FOLD X AI assistant</span></div><button class="text-button" id="clearChat">Clear chat</button></div><div class="messages" id="messages" aria-live="polite"><div class="empty-state" id="emptyState"><div class="empty-spark">✳</div><strong>Start with whatever's on your mind.</strong><p>Questions, ideas, code, or a fresh start.</p></div></div><form class="composer" id="chatForm"><textarea id="chatInput" aria-label="Your message" placeholder="Ask a question or tell me what you're working on..." required></textarea><div class="composer-bottom"><span class="composer-hint">Answers are editable. Make them yours.</span><button class="primary-button" id="sendButton" type="submit">Send <span aria-hidden="true">↗</span></button></div></form></div>
+				<div class="chat-shell"><div class="chat-head"><div class="chat-head-label"><span class="tiny-mark">FX</span><span>FOLD X AI assistant</span></div><button class="text-button" id="clearChat">Clear chat</button></div><div class="messages" id="messages" aria-live="polite"><div class="empty-state" id="emptyState"><div class="empty-spark">✳</div><strong>Start with whatever's on your mind.</strong><p>Questions, ideas, code, or a fresh start.</p></div></div><form class="composer" id="chatForm"><div class="attachment-row" id="chatAttachments"></div><textarea id="chatInput" aria-label="Your message" placeholder="Ask a question or tell me what you're working on..."></textarea><div class="composer-bottom"><div class="chat-actions-left"><button class="chat-attachment-button" id="chatAttachButton" type="button" title="Send image or video" aria-label="Send image or video">📎</button><input class="file-input" id="chatAttachmentFile" type="file" accept="image/*,video/*" multiple></div><span class="composer-hint">Send photos or videos</span><button class="primary-button" id="sendButton" type="submit">Send <span aria-hidden="true">↗</span></button></div></form></div>
 				<div class="suggestions" aria-label="Try asking"><button class="suggestion" data-prompt="Teach me HTML like I'm brand new to coding">Teach me HTML</button><button class="suggestion" data-prompt="Help me plan a YouTube video that keeps viewers watching">Plan a YouTube video</button><button class="suggestion" data-prompt="Explain a tricky idea in simple steps">Explain something simply</button><button class="suggestion" data-prompt="Help me rewrite this to sound more natural: ">Rewrite some text</button></div>
 				<div class="section-heading">A few ways to get started</div><div class="feature-row"><div class="feature"><div class="feature-icon">✎</div><strong>Shape the answer</strong><span>Click any reply to edit it in place.</span></div><div class="feature"><div class="feature-icon">▣</div><strong>Make a creator plan</strong><span>Build an edit outline and caption draft.</span></div><div class="feature"><div class="feature-icon">&lt;/&gt;</div><strong>Learn by making</strong><span>Try HTML and see your page update.</span></div></div>
 			</section>
@@ -159,6 +160,7 @@
 		let toastTimer;
 		let videoUrl = '';
 		let generatedVideoUrl = '';
+		let chatAttachments = [];
 		function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 3200); }
 		function setView(view) { $$('.nav-btn').forEach(button => button.classList.toggle('active', button.dataset.view === view)); $$('.view').forEach(section => section.classList.toggle('active', section.id === `view-${view}`)); $('#crumbTitle').textContent = ({ chat: 'Ask AI', studio: 'Creator studio', learn: 'Learn HTML' })[view]; }
 		const CREATOR_ANSWER = 'I am made by Zeni 7x Edtz, a YouTuber.';
@@ -268,7 +270,7 @@
 				clearTimeout(timeout);
 			}
 		}
-		function addMessage(role, text, editable = false) {
+		function addMessage(role, text, editable = false, attachments = []) {
 			$('#emptyState')?.remove(); const row = document.createElement('article'); row.className = `message ${role}`;
 			const avatar = document.createElement('div'); avatar.className = 'message-avatar'; avatar.textContent = role === 'user' ? 'YOU' : 'FX';
 			const body = document.createElement('div'); body.className = 'message-body'; const meta = document.createElement('div'); meta.className = 'message-meta'; meta.textContent = role === 'user' ? 'You' : 'FOLD X AI · click the answer to edit';
@@ -276,6 +278,13 @@
 			if (role === 'assistant') setAssistantContent(content, text); else content.textContent = text;
 			if (editable) { content.contentEditable = 'true'; content.setAttribute('aria-label', 'Editable AI answer'); }
 			body.append(meta, content);
+			attachments.forEach(attachment => {
+				const wrapper = document.createElement('div'); wrapper.className = 'chat-message-attachment';
+				const media = document.createElement(attachment.type.startsWith('video/') ? 'video' : 'img');
+				if (attachment.type.startsWith('video/')) { media.controls = true; media.src = attachment.url; }
+				else { media.src = attachment.url; media.alt = attachment.name; }
+				wrapper.append(media); body.append(wrapper);
+			});
 			if (editable) {
 				const tools = document.createElement('div'); tools.className = 'message-tools'; const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy';
 				copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(content.innerText); showToast('Answer copied.'); } catch { showToast('Copy is unavailable in this browser.'); } });
@@ -285,8 +294,27 @@
 			row.append(avatar, body); $('#messages').append(row); $('#messages').scrollTop = $('#messages').scrollHeight; return content;
 		}
 		function addTyping() { const row = document.createElement('div'); row.className = 'message'; row.id = 'typingIndicator'; row.innerHTML = '<div class="message-avatar">FX</div><div class="typing">Thinking <i></i><i></i><i></i></div>'; $('#messages').append(row); $('#messages').scrollTop = $('#messages').scrollHeight; }
+		function renderChatAttachments() {
+			const container = $('#chatAttachments');
+			if (!container) return;
+			container.replaceChildren();
+			chatAttachments.forEach((attachment, index) => {
+				const item = document.createElement('div'); item.className = 'attachment-item';
+				const media = document.createElement(attachment.type.startsWith('video/') ? 'video' : 'img');
+				if (attachment.type.startsWith('video/')) media.src = attachment.url; else { media.src = attachment.url; media.alt = attachment.name; }
+				const name = document.createElement('span'); name.className = 'attachment-name'; name.textContent = attachment.name;
+				const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'attachment-remove'; remove.textContent = '×'; remove.setAttribute('aria-label', `Remove ${attachment.name}`);
+				remove.addEventListener('click', () => { URL.revokeObjectURL(chatAttachments[index].url); chatAttachments.splice(index, 1); renderChatAttachments(); });
+				item.append(media, name, remove); container.append(item);
+			});
+		}
 		async function submitChat(text) {
-			const value = text.trim(); if (!value) return; $('#chatInput').value = ''; addMessage('user', value);
+			const value = text.trim();
+			if (!value && chatAttachments.length === 0) return;
+			const sentAttachments = chatAttachments.slice();
+			const visibleText = value || 'Shared an image or video';
+			$('#chatInput').value = ''; chatAttachments = []; renderChatAttachments();
+			addMessage('user', visibleText, false, sentAttachments);
 			if (/^hi[.!]*$/i.test(value)) { addMessage('assistant', 'Hi, i am fine i will help you with questions feel free to ask', true); return; }
 			if (/(?:\b(?:gali|gaali|abuse|insult|chutiya|bhosdike|madarchod|bhenchod|harami|kutte|kutta|kamina|randi|bhosdi|mc|bc)\b|fuck\b|bitch\b|shit\b|idiot\b|stupid\b)/i.test(value)) {
 				addMessage('assistant', 'bhai me gali nhi de sak ta kyu ki ye mere system me hai lekin agar nhi hota tab tujhe utha patak ke galiyata', true);
@@ -1028,6 +1056,16 @@
 		$$('.nav-btn').forEach(button => button.addEventListener('click', () => setView(button.dataset.view)));
 		$('#chatForm').addEventListener('submit', event => { event.preventDefault(); submitChat($('#chatInput').value); });
 		$('#chatInput').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('#chatForm').requestSubmit(); } });
+		$('#chatAttachButton').addEventListener('click', () => $('#chatAttachmentFile').click());
+		$('#chatAttachmentFile').addEventListener('change', event => {
+			const files = [...(event.target.files || [])].slice(0, 3);
+			files.forEach(file => {
+				if (!/^image\/|^video\//.test(file.type)) { showToast('Only images and videos can be sent.'); return; }
+				if (file.size > 20 * 1024 * 1024) { showToast(`${file.name} is larger than 20 MB.`); return; }
+				chatAttachments.push({ name: file.name, type: file.type, url: URL.createObjectURL(file) });
+			});
+			event.target.value = ''; renderChatAttachments();
+		});
 		$$('.suggestion').forEach(button => button.addEventListener('click', () => { $('#chatInput').value = button.dataset.prompt; $('#chatInput').focus(); }));
 		$('#clearChat').addEventListener('click', () => { $('#messages').innerHTML = '<div class="empty-state" id="emptyState"><div class="empty-spark">✳</div><strong>Start with whatever\'s on your mind.</strong><p>Questions, ideas, code, or a fresh start.</p></div>'; });
 		$('#chooseVideo').addEventListener('click', () => $('#videoFile').click());
