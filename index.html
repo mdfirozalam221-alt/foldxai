@@ -262,6 +262,7 @@
 		function addTyping() { const row = document.createElement('div'); row.className = 'message'; row.id = 'typingIndicator'; row.innerHTML = '<div class="message-avatar">FX</div><div class="typing">Thinking <i></i><i></i><i></i></div>'; $('#messages').append(row); $('#messages').scrollTop = $('#messages').scrollHeight; }
 		async function submitChat(text) {
 			const value = text.trim(); if (!value) return; $('#chatInput').value = ''; addMessage('user', value);
+			if (/^hi[.!]*$/i.test(value)) { addMessage('assistant', 'Hi, i am fine i will help you with questions feel free to ask', true); return; }
 			if (isCreatorQuestion(value)) { addMessage('assistant', CREATOR_ANSWER, true); return; }
 			addTyping(); $('#sendButton').disabled = true;
 			const history = $$('#messages .message:not(#typingIndicator)').map(row => ({ role: row.classList.contains('user') ? 'user' : 'assistant', content: row.querySelector('.message-content')?.innerText || '' })).filter(message => message.content);
