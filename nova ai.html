@@ -61,6 +61,7 @@
 		.message-avatar { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid var(--line); background: #20271f; color: var(--lime); font: 700 9px var(--display); }.message.user .message-avatar { background: #332620; color: var(--coral); }
 		.message-body { min-width: 0; }.message-meta { display: flex; align-items: center; gap: 8px; margin: 0 0 5px; color: var(--muted); font-size: 10px; }
 		.message-content { white-space: pre-wrap; overflow-wrap: anywhere; color: #dce3d8; font-size: 13px; line-height: 1.65; }.message-content[contenteditable="true"] { outline: none; }.message-content[contenteditable="true"]:focus { box-shadow: 0 1px 0 var(--lime); }
+		.answer-image { display: block; width: min(100%, 520px); height: auto; margin: 10px 0; border: 1px solid var(--line); border-radius: 4px; background: #101410; }
 		.message-tools { display: flex; gap: 6px; margin-top: 6px; }.message-tools button { padding: 3px 6px; border: 1px solid transparent; background: transparent; color: var(--dim); font-size: 10px; cursor: pointer; }.message-tools button:hover { border-color: var(--line); color: var(--ink); }
 		.typing { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }.typing i { width: 4px; height: 4px; border-radius: 50%; background: var(--lime); animation: blink .9s infinite alternate; }.typing i:nth-child(2) { animation-delay: .2s; }.typing i:nth-child(3) { animation-delay: .4s; }
 		@keyframes blink { to { opacity: .25; transform: translateY(-2px); } }
@@ -161,6 +162,27 @@
 		function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 3200); }
 		function setView(view) { $$('.nav-btn').forEach(button => button.classList.toggle('active', button.dataset.view === view)); $$('.view').forEach(section => section.classList.toggle('active', section.id === `view-${view}`)); $('#crumbTitle').textContent = ({ chat: 'Ask AI', studio: 'Creator studio', learn: 'Learn HTML' })[view]; }
 		const CREATOR_ANSWER = 'I am made by Zeni 7x Edtz, a YouTuber.';
+		function explanationImageUrl(prompt) {
+			const subject = prompt.replace(/\b(?:please|can you|could you|explain|teach|show|me|what is|how does|how to)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+			return `https://image.pollinations.ai/prompt/${encodeURIComponent(`A clear, friendly educational diagram about ${subject || prompt}. Simple labels, clean layout, no extra text, no copyrighted characters`)}?width=768&height=432&nologo=true`;
+		}
+		function setAssistantContent(element, text) {
+			element.replaceChildren();
+			const imagePattern = /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g;
+			let cursor = 0;
+			let match;
+			while ((match = imagePattern.exec(text)) !== null) {
+				if (match.index > cursor) element.append(document.createTextNode(text.slice(cursor, match.index)));
+				const image = document.createElement('img');
+				image.src = match[2];
+				image.alt = match[1] || 'Educational image';
+				image.loading = 'lazy';
+				image.className = 'answer-image';
+				element.append(image);
+				cursor = match.index + match[0].length;
+			}
+			if (cursor < text.length) element.append(document.createTextNode(text.slice(cursor)));
+		}
 		function isCreatorQuestion(prompt) {
 			const text = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 			return /\bwho\b.{0,40}\b(?:made|created|built|developed|programmed|designed|trained)\b.{0,40}\b(?:you|u|yourself|ai|assistant|chatbot|bot)\b/.test(text)
@@ -177,12 +199,12 @@
 			if (text.includes('your name')) return "I'm FOLD X AI, your no-login chat and creator assistant.";
 			if (text.includes('html')) return "HTML is the structure of a web page. A good place to start is: <h1>Hello!</h1>, a <p> paragraph, and a <button> button. Open Learn HTML to edit a page live.";
 			if (text.includes('thank')) return "You're welcome. Tell me the next thing you want to work on.";
-			if (text.includes('help') || text.includes('?')) return "Absolutely - tell me the exact question or what you are trying to make. I'll break it into simple next steps.";
+			if (/^(what|why|how|explain|teach|show)\b/.test(text) || text.includes('?')) return `Absolutely 😊 Tell me the exact question or what you are trying to understand. I'll break it into simple next steps.\n\n![Educational explanation](${explanationImageUrl(prompt)})`;
 			return "I'm listening. Send me a little more detail - your goal, what you have tried, and what result you want - and I'll help you work through it.";
 		}
 		async function askModel(history, timeoutMs = 30000, onToken) {
 			const messages = [
-				{ role: 'system', content: 'You are FOLD X AI, a warm, direct, and helpful assistant. Talk naturally like a friendly person. Answer clearly and concisely, leading with the answer; for math, show the essential steps. Ask a useful follow-up when needed, and avoid pretending to browse the internet or access private files. If asked who made, created, built, developed, programmed, or designed you, or who your creator is, answer exactly: "I am made by Zeni 7x Edtz, a YouTuber."' },
+				{ role: 'system', content: 'You are FOLD X AI, a warm, direct, and helpful assistant. Talk naturally like a friendly person. Answer clearly and concisely, leading with the answer; for math, show the essential steps. Use suitable emojis sparingly to make answers friendly and easy to read. For explanation questions, include exactly one relevant educational image when it helps understanding, using Markdown image syntax like ![clear description](https://image.pollinations.ai/prompt/URL_ENCODED_DESCRIPTION?width=768&height=432&nologo=true). Only include images for explanation-style questions, not casual greetings or code-only requests. Ask a useful follow-up when needed, and avoid pretending to browse the internet or access private files. If asked who made, created, built, developed, programmed, or designed you, or who your creator is, answer exactly: "I am made by Zeni 7x Edtz, a YouTuber."' },
 				...history.slice(-10)
 			];
 			const controller = new AbortController();
@@ -248,7 +270,8 @@
 			$('#emptyState')?.remove(); const row = document.createElement('article'); row.className = `message ${role}`;
 			const avatar = document.createElement('div'); avatar.className = 'message-avatar'; avatar.textContent = role === 'user' ? 'YOU' : 'FX';
 			const body = document.createElement('div'); body.className = 'message-body'; const meta = document.createElement('div'); meta.className = 'message-meta'; meta.textContent = role === 'user' ? 'You' : 'FOLD X AI · click the answer to edit';
-			const content = document.createElement('div'); content.className = 'message-content'; content.textContent = text;
+			const content = document.createElement('div'); content.className = 'message-content';
+			if (role === 'assistant') setAssistantContent(content, text); else content.textContent = text;
 			if (editable) { content.contentEditable = 'true'; content.setAttribute('aria-label', 'Editable AI answer'); }
 			body.append(meta, content);
 			if (editable) {
@@ -276,7 +299,7 @@
 				});
 				$('#typingIndicator')?.remove();
 				if (streamingAnswer) {
-					streamingAnswer.textContent = answer;
+					setAssistantContent(streamingAnswer, answer);
 				} else {
 					addMessage('assistant', answer, true);
 				}
@@ -285,7 +308,7 @@
 				const latest = history.filter(message => message.role === 'user').at(-1)?.content || '';
 				$('#typingIndicator')?.remove();
 				if (streamingAnswer) {
-					streamingAnswer.textContent = localAnswer(latest);
+					setAssistantContent(streamingAnswer, localAnswer(latest));
 				} else {
 					addMessage('assistant', localAnswer(latest), true);
 				}
