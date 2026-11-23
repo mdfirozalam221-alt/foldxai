@@ -237,6 +237,26 @@
 				|| /\b(?:who made|what made|made)\b.{0,30}\b(?:and )?when\b/.test(text)
 				|| /\byour\b.{0,20}\b(?:creation|birth|made|development)\b.{0,20}\b(?:date|time)\b/.test(text);
 		}
+		function isGreeting(prompt) {
+			return /^(?:hi+|hello+|hey+|yo+|namaste|namaskar|kaise ho|kya haal(?: hai)?|हाय|हैलो|नमस्ते|नमस्कार)(?:\s+(?:there|bro|bhai|yaar|dost|भाई|दोस्त))*[.!?]*$/iu.test(prompt.trim());
+		}
+		function greetingAnswer(prompt) {
+			const greetingCount = $$('#messages .message.user .message-content').filter(message => isGreeting(message.textContent || '')).length;
+			const isFirstGreeting = greetingCount <= 1;
+			if (/[\u0900-\u097f]/.test(prompt)) {
+				return isFirstGreeting
+					? 'हाय भाई, मैं 24/7 आपकी मदद के लिए यहाँ हूँ। बेझिझक पूछिए।'
+					: 'हाय भाई, ठीक है—अब क्या पूछना है? मैं यहीं हूँ।';
+			}
+			if (/\b(?:namaste|namaskar|kaise ho|kya haal|bhai|yaar|dost)\b/i.test(prompt)) {
+				return isFirstGreeting
+					? 'Hii bhai, main 24/7 tumhari madad ke liye yahin hoon. Bina jhijhak poochho.'
+					: 'Hii bhai, theek hai—kya poochna hai? Main yahin hoon.';
+			}
+			return isFirstGreeting
+				? "Hii bro, I'm here 24/7 to help you. Feel free to ask."
+				: "Hii bhai, okay—what do you need? Ask me; I'm here with you.";
+		}
 		function purposeAnswer() {
 			const purposes = [
 				"I am made to make everyday tasks easier by answering questions, explaining ideas, planning work, and helping you learn.",
@@ -281,11 +301,8 @@
 			if (fixedParts.length === 1) return fixedParts[0];
 			if (fixedParts.length > 1) return fixedParts.join('\n');
 			if (/(?:\b(?:gali|gaali|abuse|insult|chutiya|bhosdike|madarchod|bhenchod|harami|kutte|kutta|kamina|randi|bhosdi|mc|bc)\b|fuck\b|bitch\b|shit\b|idiot\b|stupid\b)/i.test(prompt)) return 'bhai me gali nhi de sak ta kyu ki ye mere system me hai lekin agar nhi hota tab tujhe utha patak ke galiyata';
+			if (isGreeting(prompt)) return greetingAnswer(prompt);
 			responseVariationSeed++;
-			if (/^(hi|hello|hey|yo)\b/.test(text)) {
-				const greetings = ["Hey! I'm here and ready to talk. What would you like to do or figure out?", "Hi there - what are we working on today?", "Hello! Tell me the question or idea you have in mind.", "Hey, I'm all ears. What should we tackle first?"];
-				return greetings[responseVariationSeed % greetings.length];
-			}
 			if (/sad|sorry|hurt|pain|lonely|depressed|cry|crying|upset|tension|breakup|failed|failure|worried|anxious|nervous|parishan|dukhi|udaas|rona/.test(text)) {
 				const support = [
 					"Bhai, main hoon na. Jo feel kar rahe ho, woh samajhne layak hai — please isse akela mat jhelo. Dheere-dheere batao, kya hua aur ab sabse zyada kis cheez ki zarurat hai? Main ek easy sa next step dhoondhte hain.",
@@ -436,7 +453,7 @@
 			const visibleText = value || 'Shared an image or video';
 			$('#chatInput').value = ''; chatAttachments = []; renderChatAttachments();
 			addMessage('user', visibleText, false, sentAttachments);
-			if (/^hi[.!]*$/i.test(value)) { addMessage('assistant', 'Hi, i am fine i will help you with questions feel free to ask', true); return; }
+			if (isGreeting(value)) { addMessage('assistant', greetingAnswer(value), true); return; }
 			if (/(?:\b(?:gali|gaali|abuse|insult|chutiya|bhosdike|madarchod|bhenchod|harami|kutte|kutta|kamina|randi|bhosdi|mc|bc)\b|fuck\b|bitch\b|shit\b|idiot\b|stupid\b)/i.test(value)) {
 				addMessage('assistant', 'bhai me gali nhi de sak ta kyu ki ye mere system me hai lekin agar nhi hota tab tujhe utha patak ke galiyata', true);
 				return;
