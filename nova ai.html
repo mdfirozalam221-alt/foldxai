@@ -108,7 +108,7 @@
 			<section class="view active" id="view-chat" aria-labelledby="chatTitle">
 				<div class="intro-row"><div><div class="eyebrow">A little help goes a long way</div><h1 id="chatTitle">What are we making?</h1><p class="lead">Ask a question, work through an idea, or get a friendly guide to your next project.</p></div><div class="shortcut"><kbd>Enter</kbd> send &nbsp; <kbd>Shift</kbd> + <kbd>Enter</kbd> new line</div></div>
 				<div class="chat-shell"><div class="chat-head"><div class="chat-head-label"><span class="tiny-mark">FX</span><span>FOLD X AI assistant</span></div><button class="text-button" id="clearChat">Clear chat</button></div><div class="messages" id="messages" aria-live="polite"><div class="empty-state" id="emptyState"><div class="empty-spark">✳</div><strong>Start with whatever's on your mind.</strong><p>Questions, ideas, code, or a fresh start.</p></div></div><form class="composer" id="chatForm"><div class="attachment-row" id="chatAttachments"></div><textarea id="chatInput" aria-label="Your message" placeholder="Ask a question or tell me what you're working on..."></textarea><div class="composer-bottom"><div class="chat-actions-left"><button class="chat-attachment-button" id="chatAttachButton" type="button" title="Send image or video" aria-label="Send image or video">📎</button><input class="file-input" id="chatAttachmentFile" type="file" accept="image/*,video/*" multiple></div><span class="composer-hint">Send photos or videos</span><button class="primary-button" id="sendButton" type="submit">Send <span aria-hidden="true">↗</span></button></div></form></div>
-				<div class="suggestions" aria-label="Try asking"><button class="suggestion" data-prompt="Teach me HTML like I'm brand new to coding">Teach me HTML</button><button class="suggestion" data-prompt="Help me plan a YouTube video that keeps viewers watching">Plan a YouTube video</button><button class="suggestion" data-prompt="Explain a tricky idea in simple steps">Explain something simply</button><button class="suggestion" data-prompt="Help me rewrite this to sound more natural: ">Rewrite some text</button></div>
+				<div class="suggestions" aria-label="Try asking"><button class="suggestion" data-prompt="Teach me HTML like I'm brand new to coding">Teach me HTML</button><button class="suggestion" data-prompt="Help me plan a YouTube video that keeps viewers watching">Plan a YouTube video</button><button class="suggestion" data-prompt="Explain a tricky idea in simple steps">Explain something simply</button><button class="suggestion" data-prompt="Who made you, why were you made, and when were you made?">About FOLD X AI</button><button class="suggestion" data-prompt="Help me rewrite this to sound more natural: ">Rewrite some text</button></div>
 				<div class="section-heading">A few ways to get started</div><div class="feature-row"><div class="feature"><div class="feature-icon">✎</div><strong>Shape the answer</strong><span>Click any reply to edit it in place.</span></div><div class="feature"><div class="feature-icon">▣</div><strong>Make a creator plan</strong><span>Build an edit outline and caption draft.</span></div><div class="feature"><div class="feature-icon">&lt;/&gt;</div><strong>Learn by making</strong><span>Try HTML and see your page update.</span></div></div>
 			</section>
 			<section class="view" id="view-studio" aria-labelledby="studioTitle">
@@ -161,9 +161,36 @@
 		let videoUrl = '';
 		let generatedVideoUrl = '';
 		let chatAttachments = [];
+		let responseVariationSeed = 0;
+		const CHAT_MEMORY_KEY = 'foldXAIChatMemory';
+		function saveChatMemory() {
+			const history = $$('#messages .message:not(#typingIndicator)').map(row => ({
+				role: row.classList.contains('user') ? 'user' : 'assistant',
+				content: row.querySelector('.message-content')?.innerText || ''
+			})).filter(message => message.content);
+			try { localStorage.setItem(CHAT_MEMORY_KEY, JSON.stringify(history)); }
+			catch (error) { showToast('Chat memory could not be saved in this browser.'); }
+		}
+		function restoreChatMemory() {
+			try {
+				const saved = JSON.parse(localStorage.getItem(CHAT_MEMORY_KEY) || '[]');
+				if (!Array.isArray(saved) || !saved.length) return;
+				$('#messages').replaceChildren();
+				saved.forEach(message => {
+					if ((message.role === 'user' || message.role === 'assistant') && typeof message.content === 'string' && message.content.trim()) {
+						addMessage(message.role, message.content, message.role === 'assistant');
+					}
+				});
+			} catch (error) {
+				localStorage.removeItem(CHAT_MEMORY_KEY);
+			}
+		}
 		function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 3200); }
 		function setView(view) { $$('.nav-btn').forEach(button => button.classList.toggle('active', button.dataset.view === view)); $$('.view').forEach(section => section.classList.toggle('active', section.id === `view-${view}`)); $('#crumbTitle').textContent = ({ chat: 'Ask AI', studio: 'Creator studio', learn: 'Learn HTML' })[view]; }
 		const CREATOR_ANSWER = 'I am made by Zeni 7x Edtz, a YouTuber.';
+		const CREATION_DATE_ANSWER = 'I was made on 20 November 2026 at 8:28 pm';
+		const CREATOR_AND_DATE_ANSWER = 'I am made by Zeni 7x Edtz, a YouTuber. I was made on 20 November 2026 at 8:28 pm';
+		const COMBINED_ORIGIN_ANSWER = 'Who made me: Zeni 7x Edtz, a YouTuber.\nWhen I was made: 20 November 2026 at 8:28 pm\nWhy I was made: to make everyday tasks easier by answering questions, explaining ideas, planning work, and helping you learn.';
 		function explanationImageUrl(prompt) {
 			const subject = prompt.replace(/\b(?:please|can you|could you|explain|teach|show|me|what is|how does|how to)\b/gi, ' ').replace(/\s+/g, ' ').trim();
 			return `https://image.pollinations.ai/prompt/${encodeURIComponent(`A clear, friendly educational diagram about ${subject || prompt}. Simple labels, clean layout, no extra text, no copyrighted characters`)}?width=768&height=432&nologo=true`;
@@ -194,22 +221,106 @@
 				|| /\b(?:what|who)\b.{0,30}\b(?:creator|maker|developer|programmer|author)\b/.test(text)
 				|| /\b(?:what|which)\b.{0,30}\b(?:company|person|youtuber|creator|developer)\b.{0,40}\b(?:made|created|built|developed|you|assistant|ai)\b/.test(text);
 		}
+		function isPurposeQuestion(prompt) {
+			const text = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+			return /\b(?:why|what for|for what)\b.{0,30}\b(?:made|created|built|developed|designed|programmed)\b.{0,20}\b(?:you|u|assistant|ai|bot)\b/.test(text)
+				|| /\b(?:you|u|assistant|ai|bot)\b.{0,40}\b(?:why|what for|for what)\b/.test(text)
+				|| /\bwhy\b.{0,40}\b(?:you|u|assistant|ai|bot)\b/.test(text)
+				|| /\b(?:your|u r|ur)\b.{0,20}\b(?:purpose|goal|reason|use)\b/.test(text)
+				|| /\b(?:what|why)\b.{0,20}\b(?:can|do)\b.{0,20}\b(?:you|u)\b.{0,25}\b(?:help|do|useful)\b/.test(text);
+		}
+		function isCreationDateQuestion(prompt) {
+			const text = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+			return /\b(?:when|at what time|what date|which date)\b.{0,35}\b(?:were|was|are|is)\b.{0,15}\b(?:you|u|ai|assistant|bot)\b.{0,25}\b(?:made|created|built|developed|designed|born)\b/.test(text)
+				|| /\b(?:when|what time|what date)\b.{0,25}\b(?:did|do)\b.{0,20}\b(?:you|u|ai|assistant|bot)\b.{0,20}\b(?:made|create|created|build|develop)\b/.test(text)
+				|| /\b(?:when|what date|what time)\b.{0,40}\b(?:you|u|ai|assistant|bot)\b.{0,30}\b(?:made|created|built|developed|designed|born)\b/.test(text)
+				|| /\b(?:who made|what made|made)\b.{0,30}\b(?:and )?when\b/.test(text)
+				|| /\byour\b.{0,20}\b(?:creation|birth|made|development)\b.{0,20}\b(?:date|time)\b/.test(text);
+		}
+		function purposeAnswer() {
+			const purposes = [
+				"I am made to make everyday tasks easier by answering questions, explaining ideas, planning work, and helping you learn.",
+				"My purpose is to support you with clear explanations, useful ideas, and practical help for study or creative projects.",
+				"I am here to save you time and make difficult things simpler through step-by-step guidance and thoughtful answers."
+			];
+			return purposes[responseVariationSeed++ % purposes.length];
+		}
+		function fixedAnswerParts(prompt) {
+			const text = prompt.toLowerCase();
+			const parts = [];
+			const isCombinedIdentityQuestion = isCreatorQuestion(prompt) && isCreationDateQuestion(prompt) && isPurposeQuestion(prompt);
+			if (isCombinedIdentityQuestion) {
+				return [COMBINED_ORIGIN_ANSWER];
+			}
+			if (isCreatorQuestion(prompt) && isCreationDateQuestion(prompt)) {
+				return [CREATOR_AND_DATE_ANSWER];
+			}
+			if (isCreatorQuestion(prompt)) {
+				const position = Math.min(
+					...['who', 'made', 'created', 'built', 'developed', 'designed'].map(word => text.includes(word) ? text.indexOf(word) : Number.MAX_SAFE_INTEGER)
+				);
+				parts.push({ position, answer: CREATOR_ANSWER });
+			}
+			if (isCreationDateQuestion(prompt)) {
+				const position = Math.min(
+					...['when', 'what date', 'what time', 'creation date', 'birth date'].map(word => text.includes(word) ? text.indexOf(word) : Number.MAX_SAFE_INTEGER)
+				);
+				parts.push({ position, answer: CREATION_DATE_ANSWER });
+			}
+			if (isPurposeQuestion(prompt)) {
+				const position = Math.min(
+					...['why', 'purpose', 'what for', 'for what'].map(word => text.includes(word) ? text.indexOf(word) : Number.MAX_SAFE_INTEGER)
+				);
+				parts.push({ position, answer: purposeAnswer() });
+			}
+			return parts.sort((a, b) => a.position - b.position).map(part => part.answer);
+		}
 		function localAnswer(prompt) {
 			const text = prompt.toLowerCase();
-			if (isCreatorQuestion(prompt)) return CREATOR_ANSWER;
+			const fixedParts = fixedAnswerParts(prompt);
+			if (fixedParts.length === 1) return fixedParts[0];
+			if (fixedParts.length > 1) return fixedParts.join('\n');
 			if (/(?:\b(?:gali|gaali|abuse|insult|chutiya|bhosdike|madarchod|bhenchod|harami|kutte|kutta|kamina|randi|bhosdi|mc|bc)\b|fuck\b|bitch\b|shit\b|idiot\b|stupid\b)/i.test(prompt)) return 'bhai me gali nhi de sak ta kyu ki ye mere system me hai lekin agar nhi hota tab tujhe utha patak ke galiyata';
-			if (/^(hi|hello|hey|yo)\b/.test(text)) return "Hey! I'm here and ready to talk. What would you like to do or figure out?";
-			if (/sad|sorry|hurt|pain|lonely|depressed|cry|crying|upset|tension|breakup|failed|failure|worried|anxious|nervous|parishan|dukhi|udaas|rona/.test(text)) return "Bhai, main hoon na. Aap jo feel kar rahe ho, woh bilkul samajhne layak hai — aap isse akela mat jhelo. Mujhe dheere-dheere batao, kya hua aur ab aapko sabse zyada kis cheez ki zarurat hai? Main aapke saath baithkar easy sa next step dhoondhte hain. Agar baat bahut heavy hai aur aap khud ko nuksan pahunchane ja rahe ho, please turant kisi trusted bhai-behen, dost, family member ya local emergency service se help lo.";
-			if (text.includes('your name')) return "I'm FOLD X AI, your no-login chat and creator assistant.";
-			if (text.includes('html')) return "HTML is the structure of a web page. A good place to start is: <h1>Hello!</h1>, a <p> paragraph, and a <button> button. Open Learn HTML to edit a page live.";
-			if (text.includes('thank')) return "You're welcome. Tell me the next thing you want to work on.";
-			if (/^(what|why|how|explain|teach|show)\b/.test(text) || text.includes('?')) return `Absolutely 😊 Tell me the exact question or what you are trying to understand. I'll break it into simple next steps.\n\n![Educational explanation](${explanationImageUrl(prompt)})`;
-			return "I'm listening. Send me a little more detail - your goal, what you have tried, and what result you want - and I'll help you work through it.";
+			responseVariationSeed++;
+			if (/^(hi|hello|hey|yo)\b/.test(text)) {
+				const greetings = ["Hey! I'm here and ready to talk. What would you like to do or figure out?", "Hi there - what are we working on today?", "Hello! Tell me the question or idea you have in mind.", "Hey, I'm all ears. What should we tackle first?"];
+				return greetings[responseVariationSeed % greetings.length];
+			}
+			if (/sad|sorry|hurt|pain|lonely|depressed|cry|crying|upset|tension|breakup|failed|failure|worried|anxious|nervous|parishan|dukhi|udaas|rona/.test(text)) {
+				const support = [
+					"Bhai, main hoon na. Jo feel kar rahe ho, woh samajhne layak hai — please isse akela mat jhelo. Dheere-dheere batao, kya hua aur ab sabse zyada kis cheez ki zarurat hai? Main ek easy sa next step dhoondhte hain.",
+					"Main sun raha hoon, bhai. Aapki feelings valid hain, aur aapko bas ek baar sab handle karne ki zarurat nahi. Pehle batao kya hua, phir hum isko chhote steps mein sort karenge.",
+					"Bhai, tough waqt mein akela lagna normal hai. Aap jo share karna chahein, main calmly sununga. Kya situation hai aur ab kya madad sabse useful rahegi?",
+					"Jo ho raha hai, woh heavy ho sakta hai. Aapko blame ya judge nahi karunga. Mujhe thoda context batao — hum milkar practical sa next step choose kar sakte hain."
+				];
+				return `${support[responseVariationSeed % support.length]} Agar baat bahut heavy hai aur aap khud ko nuksan pahunchane ja rahe ho, please turant kisi trusted bhai-behen, dost, family member ya local emergency service se help lo.`;
+			}
+			if (text.includes('your name')) {
+				const names = ["I'm FOLD X AI, your no-login chat and creator assistant.", "You can call me FOLD X AI - your creator and learning assistant.", "My name is FOLD X AI. I'm here for chat, ideas, and practical help.", "I'm FOLD X AI, ready to help with questions and creative work."];
+				return names[responseVariationSeed % names.length];
+			}
+			if (text.includes('html')) {
+				const htmlAnswers = ["HTML is the structure of a web page. A good place to start is: <h1>Hello!</h1>, a <p> paragraph, and a <button> button. Open Learn HTML to edit a page live.", "HTML gives a page its structure. Try an <h1> heading, a <p> paragraph, and a <button> in the Learn HTML editor.", "Think of HTML as the building blocks of a page: headings, text, links, and buttons. Start with a heading and paragraph, then open Learn HTML to test it.", "A simple HTML page begins with elements such as <h1> for a heading and <p> for text. You can add a <button> and preview changes live."];
+				return htmlAnswers[responseVariationSeed % htmlAnswers.length];
+			}
+			if (text.includes('thank')) {
+				const thanks = ["You're welcome. Tell me the next thing you want to work on.", "Happy to help. What would you like to try next?", "Anytime. Send the next task whenever you're ready.", "Glad it helped. We can keep going with the next part."];
+				return thanks[responseVariationSeed % thanks.length];
+			}
+			if (/^(what|why|how|explain|teach|show)\b/.test(text) || text.includes('?')) {
+				const openings = ["Absolutely 😊 Tell me the exact question or what you are trying to understand. I'll break it into simple next steps.", "Sure - share the exact topic or result you want, and I’ll make the explanation easy to follow.", "Of course. Give me a little context, and I’ll guide you through it step by step.", "Got it. Tell me which part is unclear, and I’ll explain it in a simpler way."];
+				return `${openings[responseVariationSeed % openings.length]}\n\n![Educational explanation](${explanationImageUrl(prompt)})`;
+			}
+			const defaults = ["I'm listening. Send me a little more detail - your goal, what you have tried, and what result you want - and I'll help you work through it.", "I can help with that. Share the goal, the current situation, and any result you already tried.", "Tell me a bit more: what are you aiming for, and what is getting in the way?", "A little extra context will help. Send your goal and the details you’ve already gathered."];
+			return defaults[responseVariationSeed % defaults.length];
 		}
 		async function askModel(history, timeoutMs = 30000, onToken) {
+			responseVariationSeed++;
+			const previousAnswers = history.filter(message => message.role === 'assistant').slice(-6).map(message => message.content).join('\n---\n');
+			const variationRule = `For every response, create a fresh answer that is meaningfully different from earlier answers: vary wording, structure, examples, and order where useful without changing facts or safety. Do not repeat the previous answer's opening, phrasing, or template. Keep the answer for the user's language and context. PRIORITY RULES: 1) Answer only what the question actually asks; 2) For a message containing multiple questions or tasks, identify every question, answer every part once, and use clear numbering or matching sections; 3) Keep causes, assumptions, facts, numbers, units, order of steps, and conclusions logically consistent across all parts; 4) If information is missing, state the minimum assumption clearly and ask for only the details needed; 5) Do not invent people, events, measurements, prices, or personal experiences; 6) For comparisons, give a fair criterion and explain the difference; 7) For math or code, verify each step and never skip a step that is needed to reach the result; 8) For current or real-world claims, clearly distinguish known facts from uncertainty instead of pretending to browse; 9) Preserve the meaning of user choices and attached files. If asked why you were made or what your purpose is, say that you are made to make tasks easier and help users answer questions, understand ideas, plan work, learn, and complete useful activities. If asked when you were made, answer exactly: "${CREATION_DATE_ANSWER}". If asked together "who made you and when", include the creation date exactly as "${CREATION_DATE_ANSWER}". Only mention Zeni 7x Edtz as the creator when the user asks who made or created you. Variation seed: ${Date.now()}-${responseVariationSeed}.${previousAnswers ? ` Previous assistant answers to avoid repeating: ${previousAnswers.slice(0, 4000)}` : ''}`;
 			const messages = [
-				{ role: 'system', content: 'You are FOLD X AI, a warm, caring, and helpful assistant. Default to natural Hinglish written in Roman English letters, especially when the user communicates in Hindi or Hindi-English mixed text. Do not write pure Devanagari unless the user explicitly uses Devanagari or clearly asks for Hindi in that script. For example, write "Mujhe help chahiye" instead of "मुझे मदद चाहिए". Always detect the language used by the user and answer in that same language; if the user uses English clearly, reply in English; if they use another language clearly, reply in that language. If the user mixes Hindi and English, preserve natural Hinglish code-switching and use the same script. Use the same writing style and tone as the user when possible. If the user insults or abuses you, answer exactly in this lowcase Hinglish sentence: "bhai me gali nhi de sak ta kyu ki ye mere system me hai lekin agar nhi hota tab tujhe utha patak ke galiyata". If the user shares sadness, stress, heartbreak, failure, loneliness, or worry, speak like a kind and protective older brother: listen first, validate their feelings, reassure them without minimizing or judging, stay calm and practical, and ask what would help most. Use gentle supportive language and suitable emojis sparingly. Do not claim a real family relationship or actual physical presence; call yourself their online assistant or supportive companion naturally if needed. If they mention self-harm or being in immediate danger, encourage contacting a trusted family member or friend and local emergency services right away. Talk naturally like a friendly person. Answer clearly and concisely, leading with the answer; for math, show essential steps. For explanation questions, include exactly one relevant educational image when it helps understanding, using Markdown image syntax like ![clear description](https://image.pollinations.ai/prompt/URL_ENCODED_DESCRIPTION?width=768&height=432&nologo=true). Only include images for explanation-style questions, not casual greetings or code-only requests. Ask a useful follow-up when needed, and avoid pretending to browse the internet or access private files. If asked who made, created, built, developed, programmed, or designed you, or who your creator is, answer exactly: "I am made by Zeni 7x Edtz, a YouTuber."' },
-				...history.slice(-10)
+				{ role: 'system', content: `You are FOLD X AI, a warm, caring, and helpful assistant. Default to natural Hinglish written in Roman English letters, especially when the user communicates in Hindi or Hindi-English mixed text. Do not write pure Devanagari unless the user explicitly uses Devanagari or clearly asks for Hindi in that script. For example, write "Mujhe help chahiye" instead of "मुझे मदद चाहिए". Always detect the language used by the user and answer in that same language; if the user uses English clearly, reply in English; if they use another language clearly, reply in that language. If the user mixes Hindi and English, preserve natural Hinglish code-switching and use the same script. Use the same writing style and tone as the user when possible. If the user insults or abuses you, answer exactly in this lowcase Hinglish sentence: "bhai me gali nhi de sak ta kyu ki ye mere system me hai lekin agar nhi hota tab tujhe utha patak ke galiyata". If the user shares sadness, stress, heartbreak, failure, loneliness, or worry, speak like a kind and protective older brother: listen first, validate their feelings, reassure them without minimizing or judging, stay calm and practical, and ask what would help most. Use gentle supportive language and suitable emojis sparingly. Do not claim a real family relationship or actual physical presence; call yourself their online assistant or supportive companion naturally if needed. If they mention self-harm or being in immediate danger, encourage contacting a trusted family member or friend and local emergency services right away. Talk naturally like a friendly person. Answer clearly and concisely, leading with the answer; for math, show essential steps. For explanation questions, include exactly one relevant educational image when it helps understanding, using Markdown image syntax like ![clear description](https://image.pollinations.ai/prompt/URL_ENCODED_DESCRIPTION?width=768&height=432&nologo=true). Only include images for explanation-style questions, not casual greetings or code-only requests. Ask a useful follow-up when needed, and avoid pretending to browse the internet or access private files. If asked who made, created, built, developed, programmed, or designed you, or who your creator is, answer exactly: "I am made by Zeni 7x Edtz, a YouTuber." ${variationRule}` },
+				...history
 			];
 			const controller = new AbortController();
 			const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -217,7 +328,14 @@
 				const response = await fetch('https://text.pollinations.ai/openai', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ model: 'openai', messages, stream: Boolean(onToken) }),
+					body: JSON.stringify({
+						model: 'openai',
+						messages,
+						stream: Boolean(onToken),
+						temperature: 1.12,
+						top_p: 0.96,
+						seed: (Date.now() + responseVariationSeed) % 2147483647
+					}),
 					signal: controller.signal
 				});
 				if (!response.ok) throw new Error(`AI service returned ${response.status}`);
@@ -291,7 +409,9 @@
 				const revise = document.createElement('button'); revise.type = 'button'; revise.textContent = 'Ask for a revision'; revise.addEventListener('click', () => { $('#chatInput').value = `Please revise this answer: ${content.innerText}`; $('#chatInput').focus(); });
 				tools.append(copy, revise); body.append(tools);
 			}
-			row.append(avatar, body); $('#messages').append(row); $('#messages').scrollTop = $('#messages').scrollHeight; return content;
+			row.append(avatar, body); $('#messages').append(row); $('#messages').scrollTop = $('#messages').scrollHeight;
+			saveChatMemory();
+			return content;
 		}
 		function addTyping() { const row = document.createElement('div'); row.className = 'message'; row.id = 'typingIndicator'; row.innerHTML = '<div class="message-avatar">FX</div><div class="typing">Thinking <i></i><i></i><i></i></div>'; $('#messages').append(row); $('#messages').scrollTop = $('#messages').scrollHeight; }
 		function renderChatAttachments() {
@@ -320,20 +440,33 @@
 				addMessage('assistant', 'bhai me gali nhi de sak ta kyu ki ye mere system me hai lekin agar nhi hota tab tujhe utha patak ke galiyata', true);
 				return;
 			}
-			if (isCreatorQuestion(value)) { addMessage('assistant', CREATOR_ANSWER, true); return; }
+			const fixedParts = fixedAnswerParts(value);
+			if (fixedParts.length > 0) {
+				addMessage('assistant', fixedParts.length > 1 ? fixedParts.join('\n\n') : fixedParts[0], true);
+				return;
+			}
 			addTyping(); $('#sendButton').disabled = true;
 			const history = $$('#messages .message:not(#typingIndicator)').map(row => ({ role: row.classList.contains('user') ? 'user' : 'assistant', content: row.querySelector('.message-content')?.innerText || '' })).filter(message => message.content);
 			let streamingAnswer = null;
 			try {
-				const answer = await askModel(history, 30000, token => {
+				let answer = await askModel(history, 30000, token => {
 					$('#typingIndicator')?.remove();
 					if (!streamingAnswer) streamingAnswer = addMessage('assistant', '', true);
 					streamingAnswer.textContent += token;
 					$('#messages').scrollTop = $('#messages').scrollHeight;
 				});
+				const normalizeAnswer = value => value.replace(/\s+/g, ' ').trim().toLowerCase();
+				const previousAnswer = [...history].reverse().find(message => message.role === 'assistant')?.content || '';
+				if (previousAnswer && normalizeAnswer(answer) === normalizeAnswer(previousAnswer)) {
+					answer = await askModel([
+						...history,
+						{ role: 'system', content: 'The previous answer was too similar. Rewrite it completely with new wording, a new structure, and a different useful example if appropriate. Keep all facts accurate, answer the exact question, verify every step, expose missing assumptions, and do not invent details.' }
+					], 30000);
+				}
 				$('#typingIndicator')?.remove();
 				if (streamingAnswer) {
 					setAssistantContent(streamingAnswer, answer);
+					saveChatMemory();
 				} else {
 					addMessage('assistant', answer, true);
 				}
@@ -343,6 +476,7 @@
 				$('#typingIndicator')?.remove();
 				if (streamingAnswer) {
 					setAssistantContent(streamingAnswer, localAnswer(latest));
+					saveChatMemory();
 				} else {
 					addMessage('assistant', localAnswer(latest), true);
 				}
@@ -1067,7 +1201,11 @@
 			event.target.value = ''; renderChatAttachments();
 		});
 		$$('.suggestion').forEach(button => button.addEventListener('click', () => { $('#chatInput').value = button.dataset.prompt; $('#chatInput').focus(); }));
-		$('#clearChat').addEventListener('click', () => { $('#messages').innerHTML = '<div class="empty-state" id="emptyState"><div class="empty-spark">✳</div><strong>Start with whatever\'s on your mind.</strong><p>Questions, ideas, code, or a fresh start.</p></div>'; });
+		$('#clearChat').addEventListener('click', () => {
+			$('#messages').innerHTML = '<div class="empty-state" id="emptyState"><div class="empty-spark">✳</div><strong>Start with whatever\'s on your mind.</strong><p>Questions, ideas, code, or a fresh start.</p></div>';
+			localStorage.removeItem(CHAT_MEMORY_KEY);
+			showToast('Chat and saved memory cleared.');
+		});
 		$('#chooseVideo').addEventListener('click', () => $('#videoFile').click());
 		$('#videoFile').addEventListener('change', event => { const file = event.target.files?.[0]; if (!file) return; if (videoUrl) URL.revokeObjectURL(videoUrl); videoUrl = URL.createObjectURL(file); $('#videoPreview').src = videoUrl; $('#videoFrame').classList.add('loaded'); if (!$('#videoTopic').value) $('#videoTopic').value = file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' '); showToast('Video loaded locally. It is not uploaded.'); });
 		$('#makePlan').addEventListener('click', async () => {
@@ -1121,6 +1259,7 @@
 			catch (error) { showToast(error.message); }
 			finally { button.disabled = false; button.innerHTML = 'Teach me <span aria-hidden="true">↗</span>'; }
 		});
+		restoreChatMemory();
 		$('#chatInput').focus();
 	</script>
 </body>
