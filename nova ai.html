@@ -250,6 +250,20 @@
 			button.setAttribute('aria-pressed', 'true');
 			window.speechSynthesis.speak(utterance);
 		}
+		function asksForSpokenReply(prompt) {
+			const text = prompt.toLowerCase();
+			if (/^\s*(?:how|where|when|why)\b/i.test(text)) return false;
+			return /\b(?:send|give|make|reply|answer|respond)\b.{0,40}\b(?:voice|audio|spoken)\b/i.test(text)
+				|| /\b(?:reply|answer|respond)\b.{0,25}\b(?:in|with|using|by)\b.{0,15}\b(?:your\s+)?(?:voice|audio)\b/i.test(text)
+				|| /\b(?:speak|say|read)\b.{0,30}\b(?:your\s+)?(?:answer|reply|message|response|it|that)\b.{0,20}\b(?:aloud|out loud)\b/i.test(text)
+				|| /\b(?:voice|audio)\b.{0,25}\b(?:jawab|reply|answer)\b.{0,15}\b(?:do|bhejo|bolo)\b/i.test(text)
+				|| /\b(?:voice|audio)\s+(?:message|reply|answer)\b.{0,20}\b(?:bhejo|bhej|send|do)\b/i.test(text)
+				|| /(?:आवाज|आवाज़|ध्वनि).{0,30}(?:जवाब|उत्तर).{0,20}(?:दो|दीजिए|दें)/.test(text);
+		}
+		function speakAssistantReply(content) {
+			const button = content.closest('.message-body')?.querySelector('button[data-speech-control]');
+			if (button) speakMessage(content.innerText, button);
+		}
 		function isCreatorQuestion(prompt) {
 			const text = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 			return /\bwho\b.{0,40}\b(?:made|created|built|developed|programmed|designed|trained)\b.{0,40}\b(?:you|u|yourself|ai|assistant|chatbot|bot)\b/.test(text)
@@ -549,18 +563,24 @@
 		async function submitChat(text) {
 			const value = text.trim();
 			if (!value && chatAttachments.length === 0) return;
+			const voiceReplyRequested = asksForSpokenReply(value);
+			const addReply = text => {
+				const content = addMessage('assistant', text, true);
+				if (voiceReplyRequested) speakAssistantReply(content);
+				return content;
+			};
 			const sentAttachments = chatAttachments.slice();
 			const visibleText = value || 'Shared an image or video';
 			$('#chatInput').value = ''; chatAttachments = []; renderChatAttachments();
 			addMessage('user', visibleText, false, sentAttachments);
-			if (isGreeting(value)) { addMessage('assistant', greetingAnswer(value), true); return; }
+			if (isGreeting(value)) { addReply(greetingAnswer(value)); return; }
 			if (/(?:\b(?:gali|gaali|abuse|insult|chutiya|bhosdike|madarchod|bhenchod|harami|kutte|kutta|kamina|randi|bhosdi|mc|bc)\b|fuck\b|bitch\b|shit\b|idiot\b|stupid\b)/i.test(value)) {
-				addMessage('assistant', 'bhai me gali nhi de sak ta kyu ki ye mere system me hai lekin agar nhi hota tab tujhe utha patak ke galiyata', true);
+				addReply('bhai me gali nhi de sak ta kyu ki ye mere system me hai lekin agar nhi hota tab tujhe utha patak ke galiyata');
 				return;
 			}
 			const fixedParts = fixedAnswerParts(value);
 			if (fixedParts.length > 0) {
-				addMessage('assistant', fixedParts.length > 1 ? fixedParts.join('\n\n') : fixedParts[0], true);
+				addReply(fixedParts.length > 1 ? fixedParts.join('\n\n') : fixedParts[0]);
 				return;
 			}
 			addTyping(); $('#sendButton').disabled = true;
@@ -585,8 +605,9 @@
 				if (streamingAnswer) {
 					setAssistantContent(streamingAnswer, answer);
 					saveChatMemory();
+					if (voiceReplyRequested) speakAssistantReply(streamingAnswer);
 				} else {
-					addMessage('assistant', answer, true);
+					addReply(answer);
 				}
 			}
 			catch (error) {
@@ -595,8 +616,9 @@
 				if (streamingAnswer) {
 					setAssistantContent(streamingAnswer, localAnswer(latest));
 					saveChatMemory();
+					if (voiceReplyRequested) speakAssistantReply(streamingAnswer);
 				} else {
-					addMessage('assistant', localAnswer(latest), true);
+					addReply(localAnswer(latest));
 				}
 			}
 			finally { $('#sendButton').disabled = false; }
