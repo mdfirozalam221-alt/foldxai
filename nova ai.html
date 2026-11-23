@@ -256,9 +256,12 @@
 			return /\b(?:send|give|make|reply|answer|respond)\b.{0,40}\b(?:voice|audio|spoken)\b/i.test(text)
 				|| /\b(?:reply|answer|respond)\b.{0,25}\b(?:in|with|using|by)\b.{0,15}\b(?:your\s+)?(?:voice|audio)\b/i.test(text)
 				|| /\b(?:speak|say|read)\b.{0,30}\b(?:your\s+)?(?:answer|reply|message|response|it|that)\b.{0,20}\b(?:aloud|out loud)\b/i.test(text)
+				|| /\b(?:read|speak|say)\b.{0,30}\b(?:(?:your|the|this|that|my|a)\s+)?(?:text|answer|reply|message|response|it|that)\b.{0,20}\b(?:aloud|out loud|to me|for me)\b/i.test(text)
+				|| /\b(?:read|speak|say)\b.{0,20}\b(?:aloud|out loud)\b.{0,20}\b(?:text|answer|reply|message|response)\b/i.test(text)
 				|| /\b(?:voice|audio)\b.{0,25}\b(?:jawab|reply|answer)\b.{0,15}\b(?:do|bhejo|bolo)\b/i.test(text)
 				|| /\b(?:voice|audio)\s+(?:message|reply|answer)\b.{0,20}\b(?:bhejo|bhej|send|do)\b/i.test(text)
-				|| /(?:आवाज|आवाज़|ध्वनि).{0,30}(?:जवाब|उत्तर).{0,20}(?:दो|दीजिए|दें)/.test(text);
+				|| /\b(?:padh|padho|sunao)\b.{0,30}\b(?:text|answer|reply|message|it|this)\b|\b(?:text|answer|reply|message)\b.{0,30}\b(?:padh|padho|sunao)\b/i.test(text)
+				|| /(?:आवाज|आवाज़|ध्वनि).{0,30}(?:जवाब|उत्तर).{0,20}(?:दो|दीजिए|दें)|(?:पढ़कर|पढ़ के|पढ़ो|सुनाओ).{0,30}(?:टेक्स्ट|जवाब|उत्तर|संदेश)|(?:टेक्स्ट|जवाब|उत्तर|संदेश).{0,30}(?:पढ़कर|पढ़ के|पढ़ो|सुनाओ)/.test(text);
 		}
 		function speakAssistantReply(content) {
 			const button = content.closest('.message-body')?.querySelector('button[data-speech-control]');
@@ -585,6 +588,7 @@
 			}
 			addTyping(); $('#sendButton').disabled = true;
 			const history = $$('#messages .message:not(#typingIndicator)').map(row => ({ role: row.classList.contains('user') ? 'user' : 'assistant', content: row.querySelector('.message-content')?.innerText || '' })).filter(message => message.content);
+			if (voiceReplyRequested) history.unshift({ role: 'system', content: 'The interface will automatically read this reply aloud. Do not claim that you cannot speak or send audio. If the user asks you to read provided text aloud, reproduce the requested text faithfully so the interface can speak it.' });
 			let streamingAnswer = null;
 			try {
 				let answer = await askModel(history, 30000, token => {
