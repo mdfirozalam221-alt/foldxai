@@ -107,7 +107,7 @@
 			<header class="topbar"><div class="crumb"><span>Workspace</span><span>/</span><strong id="crumbTitle">Ask AI</strong></div><div class="top-actions"><div class="model-chip" aria-label="AI chat available"><span class="status-dot"></span><span>AI ready</span></div><div class="avatar" title="FOLD X AI" aria-label="FOLD X AI">FX</div></div></header>
 			<section class="view active" id="view-chat" aria-labelledby="chatTitle">
 				<div class="intro-row"><div><div class="eyebrow">A little help goes a long way</div><h1 id="chatTitle">What are we making?</h1><p class="lead">Ask a question, work through an idea, or get a friendly guide to your next project.</p></div><div class="shortcut"><kbd>Enter</kbd> send &nbsp; <kbd>Shift</kbd> + <kbd>Enter</kbd> new line</div></div>
-				<div class="chat-shell"><div class="chat-head"><div class="chat-head-label"><span class="tiny-mark">FX</span><span>FOLD X AI assistant</span></div><button class="text-button" id="clearChat">Clear chat</button></div><div class="messages" id="messages" aria-live="polite"><div class="empty-state" id="emptyState"><div class="empty-spark">✳</div><strong>Start with whatever's on your mind.</strong><p>Questions, ideas, code, or a fresh start.</p></div></div><form class="composer" id="chatForm"><div class="attachment-row" id="chatAttachments"></div><textarea id="chatInput" aria-label="Your message" placeholder="Ask a question or tell me what you're working on..."></textarea><div class="composer-bottom"><div class="chat-actions-left"><button class="chat-attachment-button" id="chatAttachButton" type="button" title="Send image or video" aria-label="Send image or video">📎</button><input class="file-input" id="chatAttachmentFile" type="file" accept="image/*,video/*" multiple></div><span class="composer-hint">Send photos or videos</span><button class="primary-button" id="sendButton" type="submit">Send <span aria-hidden="true">↗</span></button></div></form></div>
+				<div class="chat-shell"><div class="chat-head"><div class="chat-head-label"><span class="tiny-mark">FX</span><span>FOLD X AI assistant</span></div><button class="text-button" id="clearChat">Clear chat</button></div><div class="messages" id="messages" aria-live="polite"><div class="empty-state" id="emptyState"><div class="empty-spark">✳</div><strong>Start with whatever's on your mind.</strong><p>Questions, ideas, code, or a fresh start.</p></div></div><form class="composer" id="chatForm"><div class="attachment-row" id="chatAttachments"></div><textarea id="chatInput" aria-label="Your message" placeholder="Ask a question or tell me what you're working on..."></textarea><div class="composer-bottom"><div class="chat-actions-left"><button class="chat-attachment-button" id="chatAttachButton" type="button" title="Send image or video" aria-label="Send image or video">📎</button><input class="file-input" id="chatAttachmentFile" type="file" accept="image/*,video/*" multiple><button class="chat-attachment-button" id="voiceInputButton" type="button" title="Speak your message" aria-label="Speak your message">🎙</button></div><span class="composer-hint">Attach media or speak your message</span><button class="primary-button" id="sendButton" type="submit">Send <span aria-hidden="true">↗</span></button></div></form></div>
 				<div class="suggestions" aria-label="Try asking"><button class="suggestion" data-prompt="Teach me HTML like I'm brand new to coding">Teach me HTML</button><button class="suggestion" data-prompt="Help me plan a YouTube video that keeps viewers watching">Plan a YouTube video</button><button class="suggestion" data-prompt="Explain a tricky idea in simple steps">Explain something simply</button><button class="suggestion" data-prompt="Who made you, why were you made, and when were you made?">About FOLD X AI</button><button class="suggestion" data-prompt="Help me rewrite this to sound more natural: ">Rewrite some text</button></div>
 				<div class="section-heading">A few ways to get started</div><div class="feature-row"><div class="feature"><div class="feature-icon">✎</div><strong>Shape the answer</strong><span>Click any reply to edit it in place.</span></div><div class="feature"><div class="feature-icon">▣</div><strong>Make a creator plan</strong><span>Build an edit outline and caption draft.</span></div><div class="feature"><div class="feature-icon">&lt;/&gt;</div><strong>Learn by making</strong><span>Try HTML and see your page update.</span></div></div>
 			</section>
@@ -161,6 +161,7 @@
 		let videoUrl = '';
 		let generatedVideoUrl = '';
 		let chatAttachments = [];
+		let speechRecognition = null;
 		let responseVariationSeed = 0;
 		const CHAT_MEMORY_KEY = 'foldXAIChatMemory';
 		function saveChatMemory() {
@@ -211,6 +212,43 @@
 				cursor = match.index + match[0].length;
 			}
 			if (cursor < text.length) element.append(document.createTextNode(text.slice(cursor)));
+		}
+		function speakMessage(text, button) {
+			if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === 'undefined') {
+				showToast('Spoken replies are not supported in this browser.');
+				return;
+			}
+			if (button.dataset.speaking === 'true') {
+				window.speechSynthesis.cancel();
+				button.dataset.speaking = 'false';
+				button.textContent = 'Read aloud';
+				button.setAttribute('aria-pressed', 'false');
+				return;
+			}
+			window.speechSynthesis.cancel();
+			$$('.message-tools button[data-speech-control]').forEach(control => {
+				control.dataset.speaking = 'false';
+				control.textContent = 'Read aloud';
+				control.setAttribute('aria-pressed', 'false');
+			});
+			const message = text.trim();
+			if (!message) { showToast('There is no reply to read yet.'); return; }
+			const utterance = new SpeechSynthesisUtterance(message);
+			utterance.lang = /[\u0900-\u097f]|\b(?:namaste|namaskar|bhai|mujhe|aap|kya|kaise|hai|ho)\b/i.test(message) ? 'hi-IN' : 'en-US';
+			const resetButton = () => {
+				button.dataset.speaking = 'false';
+				button.textContent = 'Read aloud';
+				button.setAttribute('aria-pressed', 'false');
+			};
+			utterance.onend = resetButton;
+			utterance.onerror = event => {
+				resetButton();
+				if (event.error !== 'canceled') showToast('The reply could not be spoken by this browser.');
+			};
+			button.dataset.speaking = 'true';
+			button.textContent = 'Stop audio';
+			button.setAttribute('aria-pressed', 'true');
+			window.speechSynthesis.speak(utterance);
 		}
 		function isCreatorQuestion(prompt) {
 			const text = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -424,8 +462,9 @@
 			if (editable) {
 				const tools = document.createElement('div'); tools.className = 'message-tools'; const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy';
 				copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(content.innerText); showToast('Answer copied.'); } catch { showToast('Copy is unavailable in this browser.'); } });
+				const speak = document.createElement('button'); speak.type = 'button'; speak.textContent = 'Read aloud'; speak.dataset.speechControl = 'true'; speak.setAttribute('aria-pressed', 'false'); speak.addEventListener('click', () => speakMessage(content.innerText, speak));
 				const revise = document.createElement('button'); revise.type = 'button'; revise.textContent = 'Ask for a revision'; revise.addEventListener('click', () => { $('#chatInput').value = `Please revise this answer: ${content.innerText}`; $('#chatInput').focus(); });
-				tools.append(copy, revise); body.append(tools);
+				tools.append(copy, speak, revise); body.append(tools);
 			}
 			row.append(avatar, body); $('#messages').append(row); $('#messages').scrollTop = $('#messages').scrollHeight;
 			saveChatMemory();
@@ -445,6 +484,67 @@
 				remove.addEventListener('click', () => { URL.revokeObjectURL(chatAttachments[index].url); chatAttachments.splice(index, 1); renderChatAttachments(); });
 				item.append(media, name, remove); container.append(item);
 			});
+		}
+		function speechInputLanguage() {
+			const latestUserMessage = [...$$('#messages .message.user .message-content')].reverse().find(message => message.textContent.trim())?.textContent || '';
+			if (/[\u0900-\u097f]|\b(?:namaste|namaskar|bhai|mujhe|aap|kya|kaise|hai|ho)\b/i.test(latestUserMessage)) return 'hi-IN';
+			return navigator.language?.toLowerCase().startsWith('hi') ? 'hi-IN' : 'en-US';
+		}
+		function resetVoiceInputButton() {
+			const button = $('#voiceInputButton');
+			button.textContent = '🎙';
+			button.title = 'Speak your message';
+			button.setAttribute('aria-label', 'Speak your message');
+			button.classList.remove('listening');
+		}
+		function startVoiceInput() {
+			const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+			if (!Recognition) { showToast('Voice input is not supported in this browser. Try a recent version of Chrome or Edge.'); return; }
+			if (speechRecognition) { speechRecognition.stop(); return; }
+			let recognition;
+			try { recognition = new Recognition(); }
+			catch (error) { showToast(`Could not start voice input: ${error.message}`); return; }
+			const input = $('#chatInput');
+			const originalText = input.value.trimEnd();
+			recognition.lang = speechInputLanguage();
+			recognition.continuous = false;
+			recognition.interimResults = true;
+			recognition.onstart = () => {
+				const button = $('#voiceInputButton');
+				button.textContent = '⏹';
+				button.title = 'Stop voice input';
+				button.setAttribute('aria-label', 'Stop voice input');
+				button.classList.add('listening');
+				showToast('Listening. Your browser will transcribe your speech into the message.');
+			};
+			recognition.onresult = event => {
+				const transcript = Array.from(event.results).map(result => result[0].transcript).join(' ').trim();
+				input.value = `${originalText}${originalText && transcript ? ' ' : ''}${transcript}`;
+				input.focus();
+			};
+			recognition.onerror = event => {
+				if (speechRecognition === recognition) speechRecognition = null;
+				resetVoiceInputButton();
+				const messages = {
+					'not-allowed': 'Microphone access was denied. Allow microphone access in your browser settings.',
+					'service-not-allowed': 'This browser cannot use its speech recognition service.',
+					'no-speech': 'No speech was detected. Try again.',
+					network: 'The speech recognition service is unavailable. Check your connection and try again.'
+				};
+				if (event.error !== 'aborted') showToast(messages[event.error] || 'Voice input failed. Please try again.');
+			};
+			recognition.onend = () => {
+				if (speechRecognition === recognition) speechRecognition = null;
+				resetVoiceInputButton();
+				if (input.value.trim() && input.value.trim() !== originalText.trim()) showToast('Voice transcript ready. Review it, then press Send.');
+			};
+			speechRecognition = recognition;
+			try { recognition.start(); }
+			catch (error) {
+				speechRecognition = null;
+				resetVoiceInputButton();
+				showToast(`Could not start voice input: ${error.message}`);
+			}
 		}
 		async function submitChat(text) {
 			const value = text.trim();
@@ -1209,6 +1309,7 @@
 		$('#chatForm').addEventListener('submit', event => { event.preventDefault(); submitChat($('#chatInput').value); });
 		$('#chatInput').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('#chatForm').requestSubmit(); } });
 		$('#chatAttachButton').addEventListener('click', () => $('#chatAttachmentFile').click());
+		$('#voiceInputButton').addEventListener('click', startVoiceInput);
 		$('#chatAttachmentFile').addEventListener('change', event => {
 			const files = [...(event.target.files || [])].slice(0, 3);
 			files.forEach(file => {
@@ -1220,6 +1321,10 @@
 		});
 		$$('.suggestion').forEach(button => button.addEventListener('click', () => { $('#chatInput').value = button.dataset.prompt; $('#chatInput').focus(); }));
 		$('#clearChat').addEventListener('click', () => {
+			speechRecognition?.abort();
+			speechRecognition = null;
+			resetVoiceInputButton();
+			window.speechSynthesis?.cancel();
 			$('#messages').innerHTML = '<div class="empty-state" id="emptyState"><div class="empty-spark">✳</div><strong>Start with whatever\'s on your mind.</strong><p>Questions, ideas, code, or a fresh start.</p></div>';
 			localStorage.removeItem(CHAT_MEMORY_KEY);
 			showToast('Chat and saved memory cleared.');
